@@ -1,0 +1,249 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>EWS — Loan Default Early Warning System (Prototype)</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<style>
+  :root{
+    --green:#1B5E42; --green-soft:#EAF3EE; --orange:#C65A11; --orange-soft:#FBEFE6;
+    --red:#C0392B; --amber:#D68910; --ok:#1E8449; --ink:#26302C; --mut:#6B7773;
+    --line:#DDE6E1; --bg:#F4F7F5; --card:#FFFFFF;
+  }
+  *{box-sizing:border-box;margin:0}
+  body{font:14px/1.5 'Segoe UI',Arial,sans-serif;background:var(--bg);color:var(--ink)}
+  header{background:var(--green);color:#fff;padding:14px 26px;display:flex;align-items:center;gap:14px;flex-wrap:wrap}
+  header h1{font-size:19px;font-weight:700}
+  header .sub{font-size:12px;opacity:.85}
+  .badge{background:rgba(255,255,255,.15);border-radius:20px;padding:3px 12px;font-size:12px}
+  nav{display:flex;gap:4px;background:#fff;border-bottom:1px solid var(--line);padding:0 22px}
+  nav button{border:0;background:none;padding:13px 18px;font-size:14px;font-weight:600;color:var(--mut);cursor:pointer;border-bottom:3px solid transparent}
+  nav button.on{color:var(--green);border-bottom-color:var(--orange)}
+  main{padding:20px 26px;max-width:1280px;margin:0 auto}
+  .cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:14px;margin-bottom:20px}
+  .kpi{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:14px 16px}
+  .kpi .n{font-size:26px;font-weight:800}
+  .kpi .l{font-size:11.5px;color:var(--mut);margin-top:2px}
+  .panel{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:18px;margin-bottom:18px}
+  .panel h2{font-size:15px;margin-bottom:12px;color:var(--green)}
+  table{width:100%;border-collapse:collapse;font-size:13px}
+  th{background:var(--green-soft);text-align:left;padding:8px 10px;color:var(--green);position:sticky;top:0}
+  td{padding:8px 10px;border-bottom:1px solid var(--line);vertical-align:top}
+  tr.rowbtn{cursor:pointer}
+  tr.rowbtn:hover{background:var(--green-soft)}
+  .chip{display:inline-block;padding:2px 10px;border-radius:12px;font-size:11.5px;font-weight:700;color:#fff}
+  .Red{background:var(--red)} .Amber{background:var(--amber)} .Green{background:var(--ok)}
+  .rc{display:inline-block;background:var(--orange-soft);color:var(--orange);border-radius:4px;padding:1px 7px;margin:1px 3px 1px 0;font-size:11px;font-weight:600}
+  .grid{display:grid;grid-template-columns:110px repeat(10,1fr);gap:4px;align-items:stretch}
+  .grid .hd{font-size:11px;color:var(--mut);text-align:center;align-self:end;padding-bottom:2px}
+  .grid .seg{font-size:12px;font-weight:600;display:flex;align-items:center}
+  .cell{border-radius:6px;text-align:center;padding:9px 2px;font-size:12px;font-weight:700;min-height:38px}
+  .legend{font-size:11.5px;color:var(--mut);margin-top:10px}
+  .two{display:grid;grid-template-columns:1.15fr .85fr;gap:18px}
+  @media(max-width:900px){.two{grid-template-columns:1fr}}
+  .ev{border-left:3px solid var(--orange);padding:5px 10px;margin:6px 0;background:var(--orange-soft);border-radius:0 6px 6px 0;font-size:12.5px}
+  .drv{margin:5px 0;font-size:12.5px}
+  .bar{height:8px;background:var(--orange);border-radius:4px;display:inline-block;vertical-align:middle;margin-right:8px}
+  .mut{color:var(--mut);font-size:12px}
+  select,input{padding:6px 10px;border:1px solid var(--line);border-radius:6px;font-size:13px;margin-right:8px}
+  .bench td:first-child{font-weight:600}
+  .up{color:var(--ok);font-weight:700}
+  footer{padding:14px 26px;color:var(--mut);font-size:11.5px}
+</style>
+</head>
+<body>
+<header>
+  <h1>Early Warning System — Loan Default Prediction</h1>
+  <span class="badge">Prototype · synthetic data</span>
+  <span class="sub">12-month PD · Unified Risk Grade · RAG early warning · out-of-time validated</span>
+</header>
+<nav>
+  <button class="on" data-t="portfolio">Portfolio heatmap</button>
+  <button data-t="watchlist">Early-warning watchlist</button>
+  <button data-t="loan">Loan drill-down</button>
+  <button data-t="bench">Model benchmarking</button>
+</nav>
+<main>
+  <div class="cards" id="kpis"></div>
+
+  <section id="t-portfolio">
+    <div class="panel">
+      <h2>Portfolio by segment × Unified Risk Grade (loan count, colour = exposure share at risk)</h2>
+      <div class="grid" id="heat"></div>
+      <div class="legend">Grades 1 (safest) → 10 (highest risk). Grade bands are fixed PD ranges, so a grade means the same thing in every segment. Click the Watchlist tab to act on Red/Amber loans.</div>
+    </div>
+  </section>
+
+  <section id="t-watchlist" style="display:none">
+    <div class="panel">
+      <h2>Red &amp; Amber loans — sorted by 12-month PD</h2>
+      <div style="margin-bottom:10px">
+        <select id="fseg"><option value="">All segments</option></select>
+        <select id="frag"><option value="">Red + Amber</option><option>Red</option><option>Amber</option></select>
+        <input id="fq" placeholder="Search borrower / loan id" style="width:220px">
+      </div>
+      <div style="max-height:520px;overflow:auto">
+      <table id="wl"><thead><tr>
+        <th>Loan</th><th>Borrower</th><th>Segment</th><th>Exposure (₹L)</th>
+        <th>12-mo PD</th><th>Grade</th><th>Status</th><th>Top reason codes</th>
+      </tr></thead><tbody></tbody></table>
+      </div>
+      <div class="legend">Click any row to open the loan drill-down. Reason codes are SHAP-based driver attributions from the model.</div>
+    </div>
+  </section>
+
+  <section id="t-loan" style="display:none">
+    <div class="panel">
+      <h2 id="loan-title">Loan drill-down</h2>
+      <div class="two">
+        <div>
+          <canvas id="curve" height="210"></canvas>
+          <div class="mut" style="margin-top:6px">Cumulative probability of default over the next 12 months (calibrated).</div>
+          <h2 style="margin-top:18px">Why is this loan flagged? (SHAP drivers)</h2>
+          <div id="drivers"></div>
+        </div>
+        <div>
+          <div class="cards" id="loan-kpis" style="grid-template-columns:1fr 1fr"></div>
+          <h2>Signal timeline (from NLP / LLM pipelines &amp; behavioural feeds)</h2>
+          <div id="events"></div>
+          <h2 style="margin-top:16px">Suggested playbook</h2>
+          <div id="playbook" class="ev" style="border-left-color:var(--green);background:var(--green-soft)"></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section id="t-bench" style="display:none">
+    <div class="panel">
+      <h2>Out-of-time benchmark — same flag budget for every model</h2>
+      <table class="bench"><thead><tr>
+        <th>Model</th><th>AUC-ROC</th><th>Precision on Red flags</th><th>Capture (Red)</th><th>Flag rate</th>
+      </tr></thead><tbody id="bt"></tbody></table>
+      <div class="legend" style="margin-top:10px">
+        Trained on older vintages, evaluated on unseen later vintages (out-of-time). The unstructured-signal lift
+        (news, legal filings, call sentiment, audit opinions) is the step change — leading indicators appear in text
+        months before repayment behaviour deteriorates. Red + Amber together capture
+        <b id="cap2"></b> of all defaults 12 months ahead.
+      </div>
+      <canvas id="benchchart" height="110" style="margin-top:14px"></canvas>
+    </div>
+  </section>
+</main>
+<footer>EWS prototype — synthetic portfolio, XGBoost + isotonic calibration + TreeSHAP reason codes. Operational early-warning use only; not a regulatory capital model.</footer>
+
+<script id="data" type="application/json">/*__DATA__*/{}</script>
+<script>
+const D = JSON.parse(document.getElementById('data').textContent);
+const fmt = n => n.toLocaleString('en-IN');
+const pct = (x,d=1) => (100*x).toFixed(d)+'%';
+
+/* KPI cards */
+const s = D.summary;
+document.getElementById('kpis').innerHTML = [
+  [fmt(s.loans), 'active loans scored (OOT book)'],
+  ['₹'+fmt(Math.round(s.exposure))+'L', 'total exposure'],
+  [s.red, 'RED — act now', 'var(--red)'],
+  [s.amber, 'AMBER — monitor / contact', 'var(--amber)'],
+  [pct(s.precision_red), 'precision on Red flags', 'var(--green)'],
+  [pct(s.capture_red_amber), 'defaults captured (Red+Amber)', 'var(--green)'],
+].map(([n,l,c]) => `<div class="kpi"><div class="n" style="color:${c||'var(--ink)'}">${n}</div><div class="l">${l}</div></div>`).join('');
+
+/* tabs */
+document.querySelectorAll('nav button').forEach(b => b.onclick = () => {
+  document.querySelectorAll('nav button').forEach(x => x.classList.remove('on'));
+  b.classList.add('on');
+  ['portfolio','watchlist','loan','bench'].forEach(t =>
+    document.getElementById('t-'+t).style.display = (t === b.dataset.t ? '' : 'none'));
+});
+
+/* heatmap */
+const segs = [...new Set(D.heatmap.map(h => h.segment))];
+const maxExp = Math.max(...D.heatmap.map(h => h.exposure));
+let hh = '<div></div>' + Array.from({length:10},(_,i)=>`<div class="hd">G${i+1}</div>`).join('');
+segs.forEach(sg => {
+  hh += `<div class="seg">${sg}</div>`;
+  for (let g=1; g<=10; g++) {
+    const c = D.heatmap.find(h => h.segment===sg && h.grade===g);
+    if (!c) { hh += '<div class="cell" style="background:#F0F4F2;color:#B9C4BF">–</div>'; continue; }
+    const t = Math.min(1, c.exposure / maxExp * 1.6);
+    const col = g >= 8 ? `rgba(192,57,43,${0.25+0.75*t})` : g >= 6 ? `rgba(214,137,16,${0.25+0.75*t})` : `rgba(30,132,73,${0.18+0.5*t})`;
+    const ink = t > .55 ? '#fff' : 'var(--ink)';
+    hh += `<div class="cell" style="background:${col};color:${ink}" title="${sg} · Grade ${g}: ${c.n} loans, ₹${fmt(c.exposure)}L">${c.n}</div>`;
+  }
+});
+document.getElementById('heat').innerHTML = hh;
+
+/* watchlist */
+const seldom = document.getElementById('fseg');
+segs.forEach(sg => seldom.insertAdjacentHTML('beforeend', `<option>${sg}</option>`));
+function drawWL() {
+  const fs = seldom.value, fr = document.getElementById('frag').value,
+        q = document.getElementById('fq').value.toLowerCase();
+  const rows = D.watchlist.filter(w =>
+    (!fs || w.segment===fs) && (!fr || w.rag===fr) &&
+    (!q || w.borrower.toLowerCase().includes(q) || w.loan_id.toLowerCase().includes(q)));
+  document.querySelector('#wl tbody').innerHTML = rows.map((w,i) => `
+    <tr class="rowbtn" onclick="openLoan('${w.loan_id}')">
+      <td>${w.loan_id}</td><td>${w.borrower}</td><td>${w.segment}</td>
+      <td>${fmt(w.exposure)}</td><td><b>${pct(w.pd)}</b></td>
+      <td>G${w.grade}</td><td><span class="chip ${w.rag}">${w.rag}</span></td>
+      <td>${w.reasons.map(r=>`<span class="rc">${r.code}</span>`).join('')}</td>
+    </tr>`).join('');
+}
+['fseg','frag','fq'].forEach(id => document.getElementById(id).oninput = drawWL);
+drawWL();
+
+/* drill-down */
+let curveChart;
+function openLoan(id) {
+  const w = D.watchlist.find(x => x.loan_id===id) || D.watchlist[0];
+  document.querySelectorAll('nav button').forEach(x => x.classList.remove('on'));
+  document.querySelector('nav button[data-t=loan]').classList.add('on');
+  ['portfolio','watchlist','loan','bench'].forEach(t =>
+    document.getElementById('t-'+t).style.display = (t==='loan'?'':'none'));
+  document.getElementById('loan-title').innerHTML =
+    `Loan drill-down — ${w.loan_id} · ${w.borrower} <span class="chip ${w.rag}">${w.rag}</span>`;
+  document.getElementById('loan-kpis').innerHTML = [
+    [pct(w.pd), '12-month PD (calibrated)'],
+    ['G'+w.grade, 'Unified Risk Grade'],
+    [w.segment, 'segment'],
+    ['₹'+fmt(w.exposure)+'L', 'exposure'],
+  ].map(([n,l]) => `<div class="kpi"><div class="n" style="font-size:20px">${n}</div><div class="l">${l}</div></div>`).join('');
+  const maxAbs = Math.max(...w.reasons.map(r=>Math.abs(r.value)), .001);
+  document.getElementById('drivers').innerHTML = w.reasons.map(r =>
+    `<div class="drv"><span class="bar" style="width:${Math.round(120*Math.abs(r.value)/maxAbs)}px"></span>${r.code} <span class="mut">(+${r.value.toFixed(2)})</span></div>`).join('')
+    || '<div class="mut">No strong adverse drivers.</div>';
+  document.getElementById('events').innerHTML =
+    (w.events.length ? w.events.map(e=>`<div class="ev">${e}</div>`).join('') : '<div class="mut">No adverse events detected.</div>');
+  document.getElementById('playbook').innerHTML = w.rag==='Red'
+    ? '<b>Red playbook:</b> enter watchlist · relationship-manager contact within 5 days · collateral revaluation · restructuring assessment · provisioning review.'
+    : '<b>Amber playbook:</b> proactive borrower contact · limit review · covenant check · re-score after next statement cycle.';
+  if (curveChart) curveChart.destroy();
+  curveChart = new Chart(document.getElementById('curve'), {
+    type: 'line',
+    data: { labels: Array.from({length:12},(_,i)=>'M'+(i+1)),
+      datasets: [{ label:'Cumulative PD', data:w.curve.map(x=>+(100*x).toFixed(2)),
+        borderColor:'#C65A11', backgroundColor:'rgba(198,90,17,.12)', fill:true, tension:.3, pointRadius:2 }]},
+    options: { plugins:{legend:{display:false}},
+      scales:{ y:{ ticks:{callback:v=>v+'%'}, title:{display:true,text:'cumulative PD'} } } }
+  });
+}
+window.openLoan = openLoan;
+
+/* benchmarking */
+document.getElementById('bt').innerHTML = D.metrics.map((m,i) => `
+  <tr><td>${m.model}</td><td>${m.auc.toFixed(2)}</td>
+  <td class="${i===D.metrics.length-1?'up':''}">${pct(m.precision_red)}</td>
+  <td>${pct(m.capture_red)}</td><td>${pct(m.flag_rate)}</td></tr>`).join('');
+document.getElementById('cap2').textContent = pct(D.summary.capture_red_amber);
+new Chart(document.getElementById('benchchart'), {
+  type: 'bar',
+  data: { labels: D.metrics.map(m=>m.model.split(' - ')[0].replace(' (bureau + DPD)','')),
+    datasets: [{ label:'Precision on Red flags', data:D.metrics.map(m=>+(100*m.precision_red).toFixed(1)),
+      backgroundColor:['#8A9A93','#1B5E42','#C65A11'] }]},
+  options: { plugins:{legend:{display:false}}, scales:{ y:{max:100, ticks:{callback:v=>v+'%'}} } }
+});
+</script>
+</body>
+</html>

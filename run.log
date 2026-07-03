@@ -1,0 +1,24 @@
+[
+  {
+    "model": "Legacy scorecard (bureau + DPD)",
+    "auc": 0.6,
+    "precision_red": 0.154,
+    "capture_red": 0.126,
+    "flag_rate": 0.052
+  },
+  {
+    "model": "EWS Phase 1 - structured only (XGBoost)",
+    "auc": 0.861,
+    "precision_red": 0.482,
+    "capture_red": 0.234,
+    "flag_rate": 0.031
+  },
+  {
+    "model": "EWS Phase 2 - structured + text signals",
+    "auc": 0.975,
+    "precision_red": 0.912,
+    "capture_red": 0.316,
+    "flag_rate": 0.022
+  }
+]
+summary: {'loans': 3600, 'exposure': 158027.0, 'red': 80, 'amber': 668, 'green': 2852, 'avg_pd': 0.0411, 'brier': 0.034, 'precision_red': 0.912, 'capture_red_amber': 0.965}

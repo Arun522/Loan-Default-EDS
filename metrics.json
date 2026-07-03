@@ -1,0 +1,23 @@
+[
+  {
+    "model": "Legacy scorecard (bureau + DPD)",
+    "auc": 0.6,
+    "precision_red": 0.154,
+    "capture_red": 0.126,
+    "flag_rate": 0.052
+  },
+  {
+    "model": "EWS Phase 1 - structured only (XGBoost)",
+    "auc": 0.867,
+    "precision_red": 0.505,
+    "capture_red": 0.234,
+    "flag_rate": 0.03
+  },
+  {
+    "model": "EWS Phase 2 - structured + text signals",
+    "auc": 0.975,
+    "precision_red": 0.893,
+    "capture_red": 0.325,
+    "flag_rate": 0.023
+  }
+]
